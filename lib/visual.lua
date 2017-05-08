@@ -15,10 +15,10 @@ local firstShow = {}
 function visual.showImageResults(prefix, input, output, predicted)
   for i=1,input:size(1) do
     if not firstShow[prefix] then
-      visdom:image { win = 'in_' .. prefix .. i, img = tools.convertImageColor(input[i], true) }
-      visdom:image { win = 'out_' .. prefix .. i, img = tools.convertImageColor(output[i], true) }
+      visdom:image { win = 'in_' .. prefix .. i, img = input[i] }
+      visdom:image { win = 'out_' .. prefix .. i, img = output[i] }
     end
-    visdom:image { win = 'pred_' .. prefix .. i, img = tools.convertImageColor(predicted[i], true) }
+    visdom:image { win = 'pred_' .. prefix .. i, img = predicted[i] }
   end
   firstShow[prefix] = true
 end

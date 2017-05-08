@@ -1,12 +1,13 @@
 return function(opts)
   local opts = opts or {}
   local depth = opts.depth or 16
+  local updepth = opts.upDepth or 2
   local featuremaps = opts.featureMaps or 64
   local filtersize = opts.filterSize or 3
   local pads = (filtersize-1)/2
   local nchannels = opts.channels or 3
   local upfiltersize = opts.upFilterSize or 3
-  local uppadding = (upfiltersize-1)/2
+  local uppads = (upfiltersize-1)/2
   local pads = (filtersize-1)/2
   local nonLinear = opts.nonLinear or function() return nn.LeakyReLU(0.2, true) end
 
@@ -20,16 +21,22 @@ return function(opts)
     net:add(nn.SpatialConvolution(nchannels, featuremaps, filtersize, filtersize, 1, 1, pads, pads))
     net:add(nonLinear())
 
-
     for layers = 1, depth do
       net:add(nn.SpatialConvolution(featuremaps, featuremaps, filtersize, filtersize, 1, 1, pads, pads))
       net:add(nn.SpatialBatchNormalization(featuremaps))
       net:add(nonLinear())
     end
 
-    -- decovolution
+    -- resize decovolution
     net:add(nn.SpatialUpSamplingNearest(2))
-    net:add(nn.SpatialConvolution(featuremaps, nchannels, upfiltersize, upfiltersize, 1, 1, uppadding, uppadding))
+
+    for layers = 1, updepth do
+      net:add(nn.SpatialConvolution(featuremaps, featuremaps, upfiltersize, upfiltersize, 1, 1, uppads, uppads))
+      net:add(nn.SpatialBatchNormalization(featuremaps))
+      net:add(nonLinear())
+    end
+
+    net:add(nn.SpatialConvolution(featuremaps, nchannels, upfiltersize, upfiltersize, 1, 1, uppads, uppads))
 
     return net
   end

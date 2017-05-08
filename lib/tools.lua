@@ -13,24 +13,37 @@ function tools.fatalerror(msg, ...)
   os.exit(-1)
 end
 
-function tools.convertImageColor(img, back)
-  if settings.color == 'rgb' then
+function tools.convertImageColor(colortype, img, back)
+  if colortype == 'rgb' then
     return img
-  elseif settings.color == 'y' then
+  elseif colortype == 'y' then
     if back then
       return img
     else
       return image.rgb2y(img)
     end
+  else
+    error('unknow image color type')
   end
 end
 
-function tools.loadImages(path, max)
+function tools.loadImages(path, max, colortype)
+  local files
+  if type(path) == 'table' then
+    files = {}
+    for i,p in pairs(path) do
+      tablex.insertvalues(files, dir.getfiles(p))
+    end
+    path = pretty.write(path, "")
+  else
+    files = dir.getfiles(path)
+  end
+  colortype = colortype or 'rgb'
   local images = {}
   local timer = torch.Timer()
-  for i,file in ipairs(dir.getfiles(path)) do
+  for i,file in ipairs(files) do
     if max and max >= 0 and i>max then break end
-    local img = tools.convertImageColor(image.load(file, 3, "float"))
+    local img = tools.convertImageColor(colortype, image.load(file, 3, "float"))
     table.insert(images, img)
   end
   utils.printf('Loaded dataset "%s" with %d images in %.3fs\n', path, #images, timer:time().real)
@@ -61,8 +74,40 @@ function tools.downscaleImages(images, factor)
   return outimgs
 end
 
-function tools.prepareTensorBackend(tensor, clone)
-  if settings.backend == 'cuda' then
+function tools.prepareBackend(backend, opts)
+  opts = opts or {}
+
+  -- default tensor to float
+  torch.setdefaulttensortype('torch.FloatTensor')
+
+  -- number of threads for blas
+  if opts.threads then
+    torch.setnumthreads(opts.threads)
+  end
+
+  -- make reproduciple results
+  if opts.seed then
+    torch.manualSeed(opts.seed)
+  end
+
+  if backend == 'cuda' then
+    require 'cutorch'
+    require 'cunn'
+
+    if opts.seed then
+      cutorch.manualSeed(opts.seed)
+    end
+
+    if opts.gpu then
+      cutorch.setDevice(opts.gpu)
+    end
+  end
+
+  utils.printf('Using backend %s\n', backend)
+end
+
+function tools.prepareTensorBackend(backend, tensor, clone)
+  if backend == 'cuda' then
     return tensor:cuda()
   end
   if clone then
@@ -71,8 +116,8 @@ function tools.prepareTensorBackend(tensor, clone)
   return tensor
 end
 
-function tools.prepareTensorsBackend(tensors)
-  if settings.backend == 'cuda' then
+function tools.prepareTensorsBackend(backend, tensors)
+  if backend == 'cuda' then
     for i=1,#tensors do
       tensors[i] = tensors[i]:cuda()
     end
@@ -80,12 +125,56 @@ function tools.prepareTensorsBackend(tensors)
   return tensors
 end
 
-function tools.prepareModelBackend(model, criterion, tensors)
-  if settings.backend == 'cuda' then
+function tools.prepareModelBackend(backend, model, criterion)
+  if backend == 'cuda' then
     model:cuda()
     criterion:cuda()
   end
-  utils.printf('Using backend %s\n', settings.backend)
+end
+
+function tools.loadModel(model, modelOpts, modelFile)
+ local model = require('./models/' .. model)(modelOpts)
+ local loaded = false
+ if modelFile and modelFile ~= '' and path.exists(modelFile) then
+    local loadedModel = torch.load(modelFile)
+    -- same architeture
+    if tostring(model) == tostring(loadedModel) then
+      model = loadedModel
+      loaded = true
+    end
+  end
+  model:evaluate()
+  if loaded then
+    print('Loaded trained model from file!')
+  else
+    print('Created a brand new model!')
+  end
+  return model
+end
+
+function tools.saveModel(path, model)
+  if not path or path == '' then
+    print 'Model not saved!'
+    return
+  end
+  model:clearState()
+  torch.save(path, model)
+  print('Model saved to ' .. path)
+end
+
+function tools.setupAutoSave(modelFile, model, enabled)
+  if not enabled or not modelFile or modeFile == '' then return end
+
+  local function term(signum)
+    tools.saveModel(modelFile, model:float())
+    signal.signal(signal.SIGINT, signal.SIG_DFL)
+    signal.signal(signal.SIGTERM, signal.SIG_DFL)
+    signal.signal(signal.SIGUSR2, signal.SIG_DFL)
+    signal.raise(signum)
+  end
+  signal.signal(signal.SIGINT, term)
+  signal.signal(signal.SIGTERM, term)
+  signal.signal(signal.SIGUSR2, term)
 end
 
 tools.weightinit = require('./weightinit')
