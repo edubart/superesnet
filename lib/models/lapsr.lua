@@ -5,31 +5,43 @@ return function(opts)
   local filtersize = opts.filterSize or 3
   local pads = (filtersize-1)/2
   local nchannels = opts.channels or 3
-  local upfiltersize = opts.upFilterSize or 3
-  local uppadding = (upfiltersize-1)/2
   local pads = (filtersize-1)/2
   local nonLinear = opts.nonLinear or function() return nn.LeakyReLU(0.2, true) end
 
   local function featureExtration()
-    -- Feture extration
     local net = nn.Sequential()
 
-    -- simple input normalization
-    net:add(nn.AddConstant(-0.5))
+    -- Insights:
+    -- * removing bias reduces artifacts and increases learning rate
+    -- * batch normalization also increases learning rate but generates artifacts again
+    -- * the deeper the better
 
-    net:add(nn.SpatialConvolution(nchannels, featuremaps, filtersize, filtersize, 1, 1, pads, pads))
+    net:add(nn.SpatialConvolution(nchannels, featuremaps, filtersize, filtersize, 1, 1, pads, pads):noBias())
     net:add(nonLinear())
 
-
     for layers = 1, depth do
-      net:add(nn.SpatialConvolution(featuremaps, featuremaps, filtersize, filtersize, 1, 1, pads, pads))
-      net:add(nn.SpatialBatchNormalization(featuremaps))
+      net:add(nn.SpatialConvolution(featuremaps, featuremaps, filtersize, filtersize, 1, 1, pads, pads):noBias())
       net:add(nonLinear())
     end
 
-    -- decovolution
+    -- tranposed decovolution
+    net:add(nn.SpatialFullConvolution(featuremaps, featuremaps, 4, 4, 2, 2, 1, 1):noBias())
+    net:add(nonLinear())
+    net:add(nn.SpatialConvolution(featuremaps, nchannels, filtersize, filtersize, 1, 1, pads, pads):noBias())
+
+    --[[
+    -- use upsampling + convolution instead of transposed convolution
     net:add(nn.SpatialUpSamplingNearest(2))
-    net:add(nn.SpatialConvolution(featuremaps, nchannels, upfiltersize, upfiltersize, 1, 1, uppadding, uppadding))
+    net:add(nn.SpatialConvolution(featuremaps, featuremaps, filtersize, filtersize, 1, 1, pads, pads):noBias())
+    net:add(nonLinear())
+    net:add(nn.SpatialConvolution(featuremaps, nchannels, filtersize, filtersize, 1, 1, pads, pads):noBias())
+    ]]
+
+    --[[
+    -- pixel shuffle instead of transposed convolution
+    net:add(nn.SpatialConvolution(featuremaps, nchannels * 2 * 2, 3, 3, 1, 1, 1, 1))
+    net:add(nn.PixelShuffle(2))
+    --]]
 
     return net
   end
@@ -47,7 +59,7 @@ return function(opts)
   -- build the model
   local model = nn.Sequential()
   model:add(concat)
-  model:add(nn.CAddTable())
+  model:add(nn.CAddTable(true))
 
   -- initialize weights
   tools.weightinit(model, 'kaiming')

@@ -16,7 +16,7 @@ local settings = {
     batchNormalization = true,
     nonLinear = function() return nn.LeakyReLU(0.2, true) end
   },
-  autosave = true,
+  --autosave = true,
   scaleFactor = 2,
 
   backend = 'cuda',
@@ -25,9 +25,9 @@ local settings = {
   },
 
   trainOpts = {
-    optim = optim.adam,
+    optim = optim.adamhd,
     optimState = {
-      learningRate = 0.001,
+      learningRate = 0.0001,
       weightDecay = 0.00001,
     },
 

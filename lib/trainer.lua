@@ -12,6 +12,7 @@ function trainer.train(model, criterion, inputs, outputs, testinputs, testoutput
   local maxEpochs
   local gradClipping
   local testloss
+  local testpsnr
   local inCropSize = opts.inputCropSize
   local cropSize = opts.outputCropSize or inCropSize
   local optimFunc = opts.optim
@@ -104,6 +105,7 @@ function trainer.train(model, criterion, inputs, outputs, testinputs, testoutput
     loadMiniBatch()
     if debugPrint then
       local predicted = model:forward(testinputs)
+      testpsnr = tools.psnr(predicted, testoutputs)
       testloss = criterion:forward(predicted, testoutputs)
       if opts.visdom and (showTimer:time().real > opts.showInterval or iter == 0) then
         visual.showImageResults('testset', testinputs, testoutputs, predicted)
@@ -154,7 +156,7 @@ function trainer.train(model, criterion, inputs, outputs, testinputs, testoutput
     if debugPrint then
       local lr = optimState.lr or optimState.learningRate
       utils.printf('epoch=%06d iter=%06d loss=%.16f testloss=%.16f testpsnr=%.8f lr=%.8f time=%.3fs \n',
-                   epoch, iter, loss, testloss, tools.mse2psnr(testloss), lr, timer:time().real)
+                   epoch, iter, loss, testloss, testpsnr, lr, timer:time().real)
     end
   end
 

@@ -22,7 +22,7 @@ return function(opts)
     net:add(nonLinear())
 
     for layers = 1, depth do
-      net:add(nn.SpatialConvolution(featuremaps, featuremaps, filtersize, filtersize, 1, 1, pads, pads))
+      net:add(nn.SpatialConvolution(featuremaps, featuremaps, filtersize, filtersize, 1, 1, pads, pads):noBias())
       net:add(nn.SpatialBatchNormalization(featuremaps))
       net:add(nonLinear())
     end
@@ -31,7 +31,7 @@ return function(opts)
     net:add(nn.SpatialUpSamplingNearest(2))
 
     for layers = 1, updepth do
-      net:add(nn.SpatialConvolution(featuremaps, featuremaps, upfiltersize, upfiltersize, 1, 1, uppads, uppads))
+      net:add(nn.SpatialConvolution(featuremaps, featuremaps, upfiltersize, upfiltersize, 1, 1, uppads, uppads):noBias())
       net:add(nn.SpatialBatchNormalization(featuremaps))
       net:add(nonLinear())
     end
@@ -54,7 +54,7 @@ return function(opts)
   -- build the model
   local model = nn.Sequential()
   model:add(concat)
-  model:add(nn.CAddTable())
+  model:add(nn.CAddTable(true))
 
   -- initialize weights
   tools.weightinit(model, 'kaiming')

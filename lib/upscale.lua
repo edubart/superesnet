@@ -48,6 +48,5 @@ elseif model._type:find('Cuda') then
 end
 
 local upscaledimg = model:forward(inimg)
-
-image.save(outfile, upscaledimg[1])
+image.save(outfile, upscaledimg)
 utils.printf('Finished in %.03fs\n', timer:time().real)

@@ -8,6 +8,14 @@ function tools.mse2psnr(mse)
    return 10 * math.log10(1/math.max(mse,1e-16))
 end
 
+local psnrMse
+function tools.psnr(inputs, outputs)
+  if not psnrMse then
+    psnrMse = nn.MSECriterion()
+  end
+  return tools.mse2psnr(psnrMse:forward(inputs, outputs))
+end
+
 function tools.fatalerror(msg, ...)
   io.stderr:write(string.format(msg .. "\n",...))
   os.exit(-1)
@@ -27,7 +35,7 @@ function tools.convertImageColor(colortype, img, back)
   end
 end
 
-function tools.loadImages(path, max, colortype)
+function tools.loadImages(path, max, colortype, agument)
   local files
   if type(path) == 'table' then
     files = {}
@@ -45,6 +53,24 @@ function tools.loadImages(path, max, colortype)
     if max and max >= 0 and i>max then break end
     local img = tools.convertImageColor(colortype, image.load(file, 3, "float"))
     table.insert(images, img)
+
+    if agument then
+      local height, width = img:size(2), img:size(3)
+      for i=1,4 do
+        local factor = math.random(50,99)/100
+        local sw = math.floor(width*factor)
+        local sh = math.floor(height*factor)
+        if sw % 2 == 1 then sw = sw - 1 end
+        if sh % 2 == 1 then sh = sh - 1 end
+        table.insert(images, image.scale(img, string.format('%dx%d', sw, sh)))
+      end
+      --table.insert(images, image.hflip(img))
+      --table.insert(images, image.vflip(img))
+      --table.insert(images, image.rotate(img, math.pi/2))
+      --table.insert(images, image.rotate(img, (3*math.pi)/2))
+      --table.insert(images, image.rotate(img, math.pi))
+    end
+    
   end
   utils.printf('Loaded dataset "%s" with %d images in %.3fs\n', path, #images, timer:time().real)
   return images
